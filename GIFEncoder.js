@@ -14,8 +14,9 @@ GIFEncoder = function() {
 
 	function ByteArray() {
 		this.bin = [];
+		this.blob=null;
 	}
-
+	
 	ByteArray.prototype.getData = function() {
 		for (var v = '', l = this.bin.length, i = 0; i < l; i++)
 			v += chr[this.bin[i]];
@@ -34,6 +35,12 @@ GIFEncoder = function() {
 	ByteArray.prototype.writeBytes = function(array, offset, length) {
 		for (var l = length || array.length, i = offset || 0; i < l; i++)
 			this.writeByte(array[i]);
+	};
+	
+	ByteArray.prototype.updateBlob = function() {
+		if(this.blob===null)
+			this.blob=new Blob([new Uint8Array(this.bin)],{type:"image/gif"});
+		return this.blob;
 	};
 
 	var exports = {};
@@ -143,7 +150,23 @@ GIFEncoder = function() {
 				image = im.getImageData(0, 0, im.canvas.width, im.canvas.height).data;
 				if (!sizeSet) setSize(im.canvas.width, im.canvas.height);
 			} else {
-				image = im;
+				if(im instanceof ImageData) {
+					image = im.data;
+					if(!sizeset || width!=im.width || height!=im.height) {
+						setSize(im.width,im.height);
+					} else {
+ 					}
+ 				} else if(im instanceof Uint8ClampedArray) {
+ 					if(im.length==(width*height*4)) {
+ 						image=im;
+ 					} else {
+ 						console.log("Please set the correct size: ImageData length mismatch");
+						ok=false;
+					}
+				} else {
+					console.log("Please provide correct input");
+					ok=false;
+				}
 			}
 			getImagePixels(); // convert to correct format if necessary
 			analyzePixels(); // build color table & map pixels
@@ -172,6 +195,27 @@ GIFEncoder = function() {
 		return ok;
 	};
 
+	var download = exports.download = function download(filename) {
+		if(out===null || closeStream==false) {
+			console.log("Please call start method and add frames and call finish method before calling download"); 
+		} else {
+			filename= filename !== undefined ? ( filename.endsWith(".gif")? filename: filename+".gif" ): "download.gif";
+			var templink = document.createElement("a");
+			templink.download=filename;
+			templink.href= genObjURL();
+			//document.body.appendChild(templink);
+			templink.click();
+		}
+	};
+	
+	var genObjURL= exports.genObjURL= function genObjURL() {
+		if(out===null || closeStream==false) {
+			console.log("File conversion not finished");
+		} else {
+			return URL.createObjectURL(out.updateBlob());
+		}
+	};
+
 	/**
 	 * Adds final trailer to the GIF stream, if you don't call the finish method
 	 * the GIF stream will not be valid.
@@ -186,6 +230,7 @@ GIFEncoder = function() {
 
 		try {
 			out.writeByte(0x3b); // gif trailer
+			closeStream=true;
 		} catch (e) {
 			ok = false;
 		}
